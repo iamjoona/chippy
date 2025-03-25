@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func DecodeChirpHandler(w http.ResponseWriter, r *http.Request) {
+func validateChirpHandler(w http.ResponseWriter, r *http.Request) {
 	type chirp struct {
 		Body string `json:"body"`
 	}
