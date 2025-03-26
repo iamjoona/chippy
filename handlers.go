@@ -118,12 +118,25 @@ func (cfg *apiConfig) createChirpHandler(w http.ResponseWriter, r *http.Request)
 		params.Body = cleanedBody
 	}
 
+	// check JWT
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		return
+	}
+
+	userID, err := auth.ValidateJWT(token, cfg.JWTSecret)
+	if err != nil {
+		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		return
+	}
+
 	dbChirp, err := cfg.db.CreateChirp(r.Context(), database.CreateChirpParams{
 		Body:      params.Body,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 		ID:        uuid.New(),
-		UserID:    params.UserID,
+		UserID:    userID,
 	})
 
 	if err != nil {
@@ -214,6 +227,14 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if params.Expires_in_seconds == 0 {
+		params.Expires_in_seconds = 3600
+	}
+
+	if params.Expires_in_seconds > 3600 {
+		params.Expires_in_seconds = 3600
+	}
+
 	dbUser, err := cfg.db.GetUserByEmail(r.Context(), params.Email)
 	if err != nil {
 		http.Error(w, "Invalid email or password", http.StatusUnauthorized)
@@ -226,11 +247,30 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	token, err := auth.MakeJWT(
+		dbUser.ID,
+		cfg.JWTSecret,
+		time.Duration(params.Expires_in_seconds)*time.Second,
+	)
+
+	if err != nil {
+		http.Error(w, "Error creating token", http.StatusInternalServerError)
+		return
+	}
+
+	refreshToken, err := auth.MakeRefreshToken()
+	if err != nil {
+		http.Error(w, "Error creating refresh token", http.StatusInternalServerError)
+		return
+	}
+
 	userData := User{
-		ID:        dbUser.ID,
-		Email:     dbUser.Email,
-		CreatedAt: dbUser.CreatedAt,
-		UpdatedAt: dbUser.UpdatedAt,
+		ID:            dbUser.ID,
+		Email:         dbUser.Email,
+		CreatedAt:     dbUser.CreatedAt,
+		UpdatedAt:     dbUser.UpdatedAt,
+		Token:         token,
+		Refresh_token: refreshToken,
 	}
 
 	respondWithJSON(w, http.StatusOK, userData)

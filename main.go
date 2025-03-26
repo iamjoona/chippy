@@ -18,6 +18,7 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 	db             *database.Queries
 	platform       string
+	JWTSecret      string
 }
 
 type User struct {
@@ -26,11 +27,14 @@ type User struct {
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 	HashedPassword string    `json:"-"`
+	Token          string    `json:"token"`
+	Refresh_token  string    `json:"refresh_token"`
 }
 
 type createUserRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email              string `json:"email"`
+	Password           string `json:"password"`
+	Expires_in_seconds int    `json:"expires_in_seconds"`
 }
 
 type Chirp struct {
@@ -53,6 +57,7 @@ func main() {
 	godotenv.Load()
 	dbURL := os.Getenv("DB_URL")
 	platform := os.Getenv("PLATFORM")
+	JWTSecret := os.Getenv("JWTSCRT")
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatalf("Error opening database: %v", err)
@@ -65,6 +70,7 @@ func main() {
 		fileserverHits: atomic.Int32{},
 		db:             dbQueries,
 		platform:       platform,
+		JWTSecret:      JWTSecret,
 	}
 
 	mux := http.NewServeMux()
