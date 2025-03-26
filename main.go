@@ -21,14 +21,16 @@ type apiConfig struct {
 }
 
 type User struct {
-	ID        uuid.UUID `json:"id"`
-	Email     string    `json:"email"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID             uuid.UUID `json:"id"`
+	Email          string    `json:"email"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	HashedPassword string    `json:"-"`
 }
 
 type createUserRequest struct {
-	Email string `json:"email"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 type Chirp struct {
@@ -72,6 +74,9 @@ func main() {
 	mux.HandleFunc("/api/healthz", HandlerReadiness)
 	mux.HandleFunc("POST /api/users", apiCfg.createUserHandler)
 	mux.HandleFunc("POST /api/chirps", apiCfg.createChirpHandler)
+	mux.HandleFunc("GET /api/chirps", apiCfg.getChirpsHandler)
+	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.getSingleChirpHandler)
+	mux.HandleFunc("POST /api/login", apiCfg.loginHandler)
 
 	mux.HandleFunc("POST /admin/reset", apiCfg.HandlerReset)
 	mux.HandleFunc("/admin/metrics", apiCfg.HandlerMetrics)

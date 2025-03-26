@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iamjoona/chippy/internal/auth"
 	"github.com/iamjoona/chippy/internal/database"
 )
 
@@ -62,11 +63,24 @@ func (cfg *apiConfig) createUserHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if len(params.Password) == 0 {
+		http.Error(w, "Password is required", http.StatusBadRequest)
+		return
+	}
+
+	// hash password
+	hashedPassword, err := auth.HashPassword(params.Password)
+	if err != nil {
+		http.Error(w, "Error hashing password", http.StatusInternalServerError)
+		return
+	}
+
 	dbUser, err := cfg.db.CreateUser(r.Context(), database.CreateUserParams{
-		Email:     params.Email,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-		ID:        uuid.New(),
+		Email:          params.Email,
+		HashedPassword: hashedPassword,
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+		ID:             uuid.New(),
 	})
 
 	if err != nil {
@@ -126,4 +140,98 @@ func (cfg *apiConfig) createChirpHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	respondWithJSON(w, http.StatusCreated, apiChirp)
+}
+
+func (cfg *apiConfig) getChirpsHandler(w http.ResponseWriter, r *http.Request) {
+	chirps, err := cfg.db.GetAllChirps(r.Context())
+	if err != nil {
+		http.Error(w, "Error fetching chirps", http.StatusInternalServerError)
+		return
+	}
+
+	formattedChirps := make([]Chirp, len(chirps))
+	for i, chirp := range chirps {
+		formattedChirps[i] = Chirp{
+			ID:        chirp.ID,
+			Body:      chirp.Body,
+			CreatedAt: chirp.CreatedAt,
+			UpdatedAt: chirp.UpdatedAt,
+			UserID:    chirp.UserID,
+		}
+	}
+
+	respondWithJSON(w, http.StatusOK, formattedChirps)
+}
+
+func (cfg *apiConfig) getSingleChirpHandler(w http.ResponseWriter, r *http.Request) {
+	chirpID := r.PathValue("chirpID")
+	if len(chirpID) == 0 {
+		http.Error(w, "Chirp ID is required", http.StatusNotFound)
+		return
+	}
+
+	// parse chirpID to uuid.UUID
+	parsedChirpID, err := uuid.Parse(chirpID)
+	if err != nil {
+		http.Error(w, "Invalid Chirp ID format", http.StatusBadRequest)
+		return
+	}
+
+	// get chirp from db
+	chirp, err := cfg.db.GetChirpByID(r.Context(), parsedChirpID)
+	if err != nil {
+		http.Error(w, "Error fetching chirp", http.StatusInternalServerError)
+		return
+	}
+
+	formattedChirp := Chirp{
+		ID:        chirp.ID,
+		Body:      chirp.Body,
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		UserID:    chirp.UserID,
+	}
+
+	respondWithJSON(w, http.StatusOK, formattedChirp)
+}
+
+func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
+	decoder := json.NewDecoder(r.Body)
+	params := createUserRequest{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if len(params.Email) == 0 {
+		http.Error(w, "Email is required", http.StatusBadRequest)
+		return
+	}
+
+	if len(params.Password) == 0 {
+		http.Error(w, "Password is required", http.StatusBadRequest)
+		return
+	}
+
+	dbUser, err := cfg.db.GetUserByEmail(r.Context(), params.Email)
+	if err != nil {
+		http.Error(w, "Invalid email or password", http.StatusUnauthorized)
+		return
+	}
+
+	err = auth.CheckPasswordHash(dbUser.HashedPassword, params.Password)
+	if err != nil {
+		http.Error(w, "Invalid email or password", http.StatusUnauthorized)
+		return
+	}
+
+	userData := User{
+		ID:        dbUser.ID,
+		Email:     dbUser.Email,
+		CreatedAt: dbUser.CreatedAt,
+		UpdatedAt: dbUser.UpdatedAt,
+	}
+
+	respondWithJSON(w, http.StatusOK, userData)
 }
