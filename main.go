@@ -18,7 +18,7 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 	db             *database.Queries
 	platform       string
-	JWTSecret      string
+	jwtSecret      string
 }
 
 type User struct {
@@ -28,7 +28,7 @@ type User struct {
 	UpdatedAt      time.Time `json:"updated_at"`
 	HashedPassword string    `json:"-"`
 	Token          string    `json:"token"`
-	Refresh_token  string    `json:"refresh_token"`
+	RefreshToken   string    `json:"refresh_token"`
 }
 
 type createUserRequest struct {
@@ -57,7 +57,11 @@ func main() {
 	godotenv.Load()
 	dbURL := os.Getenv("DB_URL")
 	platform := os.Getenv("PLATFORM")
-	JWTSecret := os.Getenv("JWTSCRT")
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if os.Getenv("JWT_SECRET") == "" {
+		log.Fatal("JWT_SECRET environment variable is required")
+	}
+
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatalf("Error opening database: %v", err)
@@ -70,7 +74,7 @@ func main() {
 		fileserverHits: atomic.Int32{},
 		db:             dbQueries,
 		platform:       platform,
-		JWTSecret:      JWTSecret,
+		jwtSecret:      jwtSecret,
 	}
 
 	mux := http.NewServeMux()
@@ -83,6 +87,8 @@ func main() {
 	mux.HandleFunc("GET /api/chirps", apiCfg.getChirpsHandler)
 	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.getSingleChirpHandler)
 	mux.HandleFunc("POST /api/login", apiCfg.loginHandler)
+	mux.HandleFunc("POST /api/refresh", apiCfg.refreshHandler)
+	mux.HandleFunc("POST /api/revoke", apiCfg.revokeHandler)
 
 	mux.HandleFunc("POST /admin/reset", apiCfg.HandlerReset)
 	mux.HandleFunc("/admin/metrics", apiCfg.HandlerMetrics)

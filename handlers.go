@@ -125,7 +125,7 @@ func (cfg *apiConfig) createChirpHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	userID, err := auth.ValidateJWT(token, cfg.JWTSecret)
+	userID, err := auth.ValidateJWT(token, cfg.jwtSecret)
 	if err != nil {
 		http.Error(w, "Invalid token", http.StatusUnauthorized)
 		return
@@ -206,72 +206,4 @@ func (cfg *apiConfig) getSingleChirpHandler(w http.ResponseWriter, r *http.Reque
 	}
 
 	respondWithJSON(w, http.StatusOK, formattedChirp)
-}
-
-func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
-	decoder := json.NewDecoder(r.Body)
-	params := createUserRequest{}
-	err := decoder.Decode(&params)
-	if err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	if len(params.Email) == 0 {
-		http.Error(w, "Email is required", http.StatusBadRequest)
-		return
-	}
-
-	if len(params.Password) == 0 {
-		http.Error(w, "Password is required", http.StatusBadRequest)
-		return
-	}
-
-	if params.Expires_in_seconds == 0 {
-		params.Expires_in_seconds = 3600
-	}
-
-	if params.Expires_in_seconds > 3600 {
-		params.Expires_in_seconds = 3600
-	}
-
-	dbUser, err := cfg.db.GetUserByEmail(r.Context(), params.Email)
-	if err != nil {
-		http.Error(w, "Invalid email or password", http.StatusUnauthorized)
-		return
-	}
-
-	err = auth.CheckPasswordHash(dbUser.HashedPassword, params.Password)
-	if err != nil {
-		http.Error(w, "Invalid email or password", http.StatusUnauthorized)
-		return
-	}
-
-	token, err := auth.MakeJWT(
-		dbUser.ID,
-		cfg.JWTSecret,
-		time.Duration(params.Expires_in_seconds)*time.Second,
-	)
-
-	if err != nil {
-		http.Error(w, "Error creating token", http.StatusInternalServerError)
-		return
-	}
-
-	refreshToken, err := auth.MakeRefreshToken()
-	if err != nil {
-		http.Error(w, "Error creating refresh token", http.StatusInternalServerError)
-		return
-	}
-
-	userData := User{
-		ID:            dbUser.ID,
-		Email:         dbUser.Email,
-		CreatedAt:     dbUser.CreatedAt,
-		UpdatedAt:     dbUser.UpdatedAt,
-		Token:         token,
-		Refresh_token: refreshToken,
-	}
-
-	respondWithJSON(w, http.StatusOK, userData)
 }

@@ -21,11 +21,11 @@ type Chirp struct {
 
 type RefreshToken struct {
 	Token     string
-	CreatedAt sql.NullTime
-	UpdatedAt sql.NullTime
-	ExpiresAt sql.NullTime
-	RevokedAt sql.NullTime
+	CreatedAt time.Time
+	UpdatedAt time.Time
 	UserID    uuid.UUID
+	ExpiresAt time.Time
+	RevokedAt sql.NullTime
 }
 
 type User struct {
