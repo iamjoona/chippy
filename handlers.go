@@ -158,9 +158,41 @@ func (cfg *apiConfig) createChirpHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (cfg *apiConfig) getChirpsHandler(w http.ResponseWriter, r *http.Request) {
+	authorId := r.URL.Query().Get("author_id")
+
+	// If we have an author ID, get their chirps
+	if authorId != "" {
+		parsedAuthorId, err := uuid.Parse(authorId)
+		if err != nil {
+			respondWithError(w, http.StatusBadRequest, "Invalid author ID", err)
+			return
+		}
+
+		authorChirps, err := cfg.db.GetChirpsByUserID(r.Context(), parsedAuthorId)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Error fetching chirps", err)
+			return
+		}
+
+		formattedChirps := make([]Chirp, len(authorChirps))
+		for i, chirp := range authorChirps {
+			formattedChirps[i] = Chirp{
+				ID:        chirp.ID,
+				Body:      chirp.Body,
+				CreatedAt: chirp.CreatedAt,
+				UpdatedAt: chirp.UpdatedAt,
+				UserID:    chirp.UserID,
+			}
+		}
+
+		respondWithJSON(w, http.StatusOK, formattedChirps)
+		return
+	}
+
+	// If no author ID, get all chirps
 	chirps, err := cfg.db.GetAllChirps(r.Context())
 	if err != nil {
-		http.Error(w, "Error fetching chirps", http.StatusInternalServerError)
+		respondWithError(w, http.StatusInternalServerError, "Error fetching chirps", err)
 		return
 	}
 
