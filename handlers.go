@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -206,4 +207,70 @@ func (cfg *apiConfig) getSingleChirpHandler(w http.ResponseWriter, r *http.Reque
 	}
 
 	respondWithJSON(w, http.StatusOK, formattedChirp)
+}
+
+func (cfg *apiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) {
+	// Add debug logging
+	log.Printf("Debug - Auth header: %s", r.Header.Get("Authorization"))
+
+	// Get and validate token
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		log.Printf("Debug - Token error: %v", err)
+		respondWithError(w, http.StatusUnauthorized, "Invalid token", err)
+		return
+	}
+
+	// Get user ID from token
+	userID, err := auth.ValidateJWT(token, cfg.jwtSecret)
+	if err != nil {
+		log.Printf("Debug - JWT validation error: %v", err)
+		respondWithError(w, http.StatusUnauthorized, "Invalid token", err)
+		return
+	}
+
+	// Decode request body
+	decoder := json.NewDecoder(r.Body)
+	params := struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}{}
+	err = decoder.Decode(&params)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	// Validate inputs
+	if len(params.Email) == 0 || len(params.Password) == 0 {
+		respondWithError(w, http.StatusBadRequest, "Email and password are required", nil)
+		return
+	}
+
+	// Hash new password
+	hashedPassword, err := auth.HashPassword(params.Password)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error hashing password", err)
+		return
+	}
+
+	// Update user
+	dbUser, err := cfg.db.UpdateUser(r.Context(), database.UpdateUserParams{
+		ID:             userID,
+		Email:          params.Email,
+		HashedPassword: hashedPassword,
+		UpdatedAt:      time.Now(),
+	})
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error updating user", err)
+		return
+	}
+
+	// Return updated user
+	respondWithJSON(w, http.StatusOK, User{
+		ID:        dbUser.ID,
+		Email:     dbUser.Email,
+		CreatedAt: dbUser.CreatedAt,
+		UpdatedAt: dbUser.UpdatedAt,
+	})
 }

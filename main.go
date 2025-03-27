@@ -32,9 +32,8 @@ type User struct {
 }
 
 type createUserRequest struct {
-	Email              string `json:"email"`
-	Password           string `json:"password"`
-	Expires_in_seconds int    `json:"expires_in_seconds"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 type Chirp struct {
@@ -89,6 +88,7 @@ func main() {
 	mux.HandleFunc("POST /api/login", apiCfg.loginHandler)
 	mux.HandleFunc("POST /api/refresh", apiCfg.refreshHandler)
 	mux.HandleFunc("POST /api/revoke", apiCfg.revokeHandler)
+	mux.HandleFunc("PUT /api/users", apiCfg.updateUserHandler)
 
 	mux.HandleFunc("POST /admin/reset", apiCfg.HandlerReset)
 	mux.HandleFunc("/admin/metrics", apiCfg.HandlerMetrics)
