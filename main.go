@@ -19,6 +19,7 @@ type apiConfig struct {
 	db             *database.Queries
 	platform       string
 	jwtSecret      string
+	polkaApiKey    string
 }
 
 type User struct {
@@ -29,6 +30,7 @@ type User struct {
 	HashedPassword string    `json:"-"`
 	Token          string    `json:"token"`
 	RefreshToken   string    `json:"refresh_token"`
+	IsChirpyRed    bool      `json:"is_chirpy_red"`
 }
 
 type createUserRequest struct {
@@ -56,15 +58,22 @@ func main() {
 	godotenv.Load()
 	dbURL := os.Getenv("DB_URL")
 	platform := os.Getenv("PLATFORM")
+
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if os.Getenv("JWT_SECRET") == "" {
 		log.Fatal("JWT_SECRET environment variable is required")
+	}
+
+	polkaApiKey := os.Getenv("POLKA_KEY")
+	if os.Getenv("POLKA_KEY") == "" {
+		log.Fatal("POLKA_KEY environment variable is required")
 	}
 
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatalf("Error opening database: %v", err)
 	}
+
 	defer db.Close()
 
 	dbQueries := database.New(db)
@@ -74,6 +83,7 @@ func main() {
 		db:             dbQueries,
 		platform:       platform,
 		jwtSecret:      jwtSecret,
+		polkaApiKey:    polkaApiKey,
 	}
 
 	mux := http.NewServeMux()
@@ -90,6 +100,7 @@ func main() {
 	mux.HandleFunc("POST /api/revoke", apiCfg.revokeHandler)
 	mux.HandleFunc("PUT /api/users", apiCfg.updateUserHandler)
 	mux.HandleFunc("DELETE /api/chirps/{chirpID}", apiCfg.deleteChirpHandler)
+	mux.HandleFunc("POST /api/polka/webhooks", apiCfg.userUpgradeHandler)
 
 	mux.HandleFunc("POST /admin/reset", apiCfg.HandlerReset)
 	mux.HandleFunc("/admin/metrics", apiCfg.HandlerMetrics)
