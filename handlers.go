@@ -159,6 +159,12 @@ func (cfg *apiConfig) createChirpHandler(w http.ResponseWriter, r *http.Request)
 
 func (cfg *apiConfig) getChirpsHandler(w http.ResponseWriter, r *http.Request) {
 	authorId := r.URL.Query().Get("author_id")
+	sortOrder := r.URL.Query().Get("sort")
+
+	if sortOrder != "" && sortOrder != "asc" && sortOrder != "desc" {
+		respondWithError(w, http.StatusBadRequest, "Sort parameter must be 'asc' or 'desc'", nil)
+		return
+	}
 
 	// If we have an author ID, get their chirps
 	if authorId != "" {
@@ -168,7 +174,13 @@ func (cfg *apiConfig) getChirpsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		authorChirps, err := cfg.db.GetChirpsByUserID(r.Context(), parsedAuthorId)
+		var authorChirps []database.Chirp
+		if sortOrder == "desc" {
+			authorChirps, err = cfg.db.GetChirpsByUserIDDesc(r.Context(), parsedAuthorId)
+		} else {
+			authorChirps, err = cfg.db.GetChirpsByUserID(r.Context(), parsedAuthorId)
+		}
+
 		if err != nil {
 			respondWithError(w, http.StatusInternalServerError, "Error fetching chirps", err)
 			return
@@ -190,7 +202,14 @@ func (cfg *apiConfig) getChirpsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// If no author ID, get all chirps
-	chirps, err := cfg.db.GetAllChirps(r.Context())
+	var chirps []database.Chirp
+	var err error
+	if sortOrder == "desc" {
+		chirps, err = cfg.db.GetAllChirpsDesc(r.Context())
+	} else {
+		chirps, err = cfg.db.GetAllChirps(r.Context())
+	}
+
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Error fetching chirps", err)
 		return
